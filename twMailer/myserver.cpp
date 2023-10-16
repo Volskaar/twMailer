@@ -209,7 +209,55 @@ void *clientCommunication(void *data)
       buffer[size] = '\0';
       printf("Message received: %s\n", buffer); // ignore error
 
-      if (send(*current_socket, "OK", 3, 0) == -1)
+       /**-------------------------------------------------**/
+
+
+       vector<string> input;
+       string temp = "";
+
+       for(int i=0; i<size; i++){
+           if(buffer[i] != '\n'){
+               temp += buffer[i];
+               printf("Current char: %c\n", buffer[i]);
+           }
+           else{
+               cout << "substring: " << temp << endl;
+               input.push_back(temp);
+               temp = "";
+           }
+           printf("Test\n");
+           printf("Vector size: %d\n", int(input.size()));
+       }
+
+       printf("Vector size: %d", int(input.size()));
+
+       if(input[0] == "SEND"){
+           printf("SEND");
+           cout << "SEND: " << endl;
+       }
+       else if(input[0] == "LIST"){
+           printf("LIST");
+           cout << "LIST: " << endl;
+       }
+       else if(input[0] == "READ"){
+           printf("READ");
+           cout << "READ: " << endl;
+       }
+       else if(input[0] == "DEL"){
+           printf("DEL");
+           cout << "DEL: " << endl;
+       }
+       else if(input[0] == "QUIT"){
+           printf("QUIT");
+           cout << "QUIT: RECEIVED" << endl;
+       }
+       else{
+           printf("Command not recognized. Try SEND/LIST/READ/DEL/QUIT");
+       }
+
+       /**-------------------------------------------------**/
+
+       if (send(*current_socket, "OK", 3, 0) == -1)
       {
          perror("send answer failed");
          return NULL;
