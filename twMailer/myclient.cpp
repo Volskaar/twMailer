@@ -92,6 +92,7 @@ int main(int argc, char **argv)
       {
          int size = strlen(buffer);
          // remove new-line signs from string at the end
+         /*
          if (buffer[size - 2] == '\r' && buffer[size - 1] == '\n')
          {
             size -= 2;
@@ -102,6 +103,7 @@ int main(int argc, char **argv)
             --size;
             buffer[size] = 0;
          }
+          */
          isQuit = strcmp(buffer, "quit") == 0;
 
          //////////////////////////////////////////////////////////////////////
