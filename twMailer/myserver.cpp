@@ -7,6 +7,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <iostream>
+#include <vector>
+
+using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -209,58 +213,58 @@ void *clientCommunication(void *data)
        */
 
       buffer[size] = '\0';
-       if(buffer[size - 1] == '\n'){
-           printf("zeilenumbruch dabei");
-       }
       printf("Message received: %s\n", buffer); // ignore error
 
 
        /**-------------------------------------------------**/
-       /*
+
 
        // command switch SEND/LIST/READ/DEL/QUIT
 
-       char input[10][256];
-       int argument_cnt = 0;
-       int char_cnt = 0;
+       vector <string> input;
+       string current;
 
-       for(int i=0; i<size; i++){
+       for(int i=0; i < size; i++){
            if(buffer[i] != ' '){
-               input[argument_cnt][char_cnt] = buffer[i];
-               char_cnt++;
-               printf("Current char: %c\n", buffer[i]);
+               current += buffer[i];
+               //printf("Current char: %c\n", buffer[i]);
            }
            else{
-               argument_cnt++;
-               char_cnt = 0;
-
-               if(argument_cnt > 10){
-                   printf("Maximum argument count reached\n");
-                   break;
-               }
+               input.push_back(current);
+               current = "";
            }
        }
+       input.push_back(current);
+       current = "";
 
-       if(strcmp(input[0],"SEND") == 0){
+
+       if(input[0] == "SEND"){
            cout << "SEND: " << endl;
        }
-       else if(strcmp(input[0],"LIST") == 0){
+       else if(input[0] == "LIST"){
            cout << "LIST: " << endl;
        }
-       else if(strcmp(input[0],"READ") == 0){
+       else if(input[0] == "READ"){
            cout << "READ: " << endl;
        }
-       else if(strcmp(input[0],"DEL") == 0){
+       else if(input[0] == "DEL"){
            cout << "DEL: " << endl;
        }
-       else if(strcmp(input[0],"QUIT") == 0){
+       else if(input[0] == "QUIT"){
            cout << "QUIT: RECEIVED" << endl;
        }
        else{
-           printf("Command not recognized. Try SEND/LIST/READ/DEL/QUIT");
+           cout << input[0] << " | Command not recognized. Try SEND/LIST/READ/DEL/QUIT" << endl;
+
        }
 
-       */
+       for(auto iter : input){
+            cout << iter << endl;
+       }
+
+       //befehl alleine ohne attribute - z. B. READ - funktioniert nicht weil \n mitgespeichert wird
+
+
        /**-------------------------------------------------**/
 
        if (send(*current_socket, "OK", 3, 0) == -1)
