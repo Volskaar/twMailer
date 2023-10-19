@@ -208,11 +208,11 @@ void *clientCommunication(void *data) {
     input.push_back(current);
     current = "";
 
+    int inputSize = input.size();
+
     if (input[0] == "SEND") {
-      int inputSize = input.size();
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
-        continue;
       } else {
         string sender = input[1];
         string receiver = input[2];
@@ -220,23 +220,23 @@ void *clientCommunication(void *data) {
         string message = input[4];
 
         // 1. check if receiver has folder, if not -> create
-        string inputPath = "mail-spooler/" + receiver + "/";
+        string inputPath = "../mail-spooler/" + receiver;
         string messageName = sender + "_" + subject + ".txt";
 
-        DIR *directoryPointer;
-        directoryPointer = opendir(inputPath.c_str());
+        DIR *directoryPointer = opendir(inputPath.c_str());
 
         if (directoryPointer == NULL) {
+          perror("opendir");
           // Creating a directory if not existing
           if (mkdir(inputPath.c_str(), 0777) == -1) {
             cerr << "Error :  " << strerror(errno) << endl;
           } else {
-            cout << "Directory created";
+            cout << "Directory created \n";
           }
         }
 
         // 2. create textfile in correct folder
-        ofstream file(inputPath + messageName);
+        ofstream file(inputPath + "/" + messageName);
 
         // 3. write sender, receiver, subject and message into textfile
         file << sender << "\n";
