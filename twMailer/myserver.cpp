@@ -213,7 +213,9 @@ void *clientCommunication(void *data) {
     if (input[0] == "SEND") {
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
-      } else {
+      }
+
+      else {
         string sender = input[1];
         string receiver = input[2];
         string subject = input[3];
@@ -230,7 +232,9 @@ void *clientCommunication(void *data) {
           // Creating a directory if not existing
           if (mkdir(inputPath.c_str(), 0777) == -1) {
             cerr << "Error :  " << strerror(errno) << endl;
-          } else {
+          }
+
+          else {
             cout << "Directory created \n";
           }
         }
@@ -245,23 +249,66 @@ void *clientCommunication(void *data) {
         file << message << "\n";
 
         file.close();
+        closedir(directoryPointer);
+        free(directoryPointer);
       }
-    } else if (input[0] == "LIST") {
-      cout << "LIST: " << endl;
-    } else if (input[0] == "READ") {
+    }
+
+    else if (input[0] == "LIST") {
+      if (inputSize < 2) {
+        printf("Invalid LIST command.\n");
+      } else {
+        int msgCnt = 0;
+        string user = input[1];
+
+        // !!! WICHTIG !!!
+        // code funktioniert, aber er schafft es nicht den Pfad zu finden
+        // ka warum, es ist derselbe code wie oben, ich kann nimmer
+
+        string inputPath = "../mail-spooler/" + user;
+
+        DIR *directoryPointer = opendir(inputPath.c_str());
+        struct dirent *entry;
+
+        if (directoryPointer == NULL) {
+          perror("opendir");
+          cout << "Path: " << inputPath << endl;
+        } else {
+          while ((entry = readdir(directoryPointer)) != NULL) {
+            printf("%s\n", entry->d_name); // print all directory name
+          }
+
+          closedir(directoryPointer); // close all directory
+          free(directoryPointer);
+          free(entry);
+        }
+
+        cout << "Total Messages: " << msgCnt << endl;
+      }
+    }
+
+    else if (input[0] == "READ") {
       cout << "READ: " << endl;
-    } else if (input[0] == "DEL") {
+    }
+
+    else if (input[0] == "DEL") {
       cout << "DEL: " << endl;
-    } else if (input[0] == "QUIT") {
+    }
+
+    else if (input[0] == "QUIT") {
       cout << "QUIT: RECEIVED" << endl;
-    } else {
+    }
+
+    else {
       cout << input[0]
            << " | Command not recognized. Try SEND/LIST/READ/DEL/QUIT" << endl;
     }
 
+    /*
     for (auto iter : input) {
       cout << iter << endl;
     }
+    */
 
     // befehl alleine ohne attribute - z. B. READ - funktioniert nicht weil \n
     // mitgespeichert wird
