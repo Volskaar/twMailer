@@ -210,6 +210,8 @@ void *clientCommunication(void *data) {
 
     int inputSize = input.size();
 
+    /////////////////////////////////////////////////////////////////////////
+
     if (input[0] == "SEND") {
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
@@ -254,17 +256,26 @@ void *clientCommunication(void *data) {
       }
     }
 
+    /////////////////////////////////////////////////////////////////////////
+
+    /* Problem:
+    wenn ich LIST aufrufe schicke ich dem Client mit send() in einer
+    while-schleife die einzelnen einträge.     soweit so gut, das macht er auch.
+    das Problem ist, dass sich der Client nach jeder operation ein "OK"
+    erwartet. Das "OK" kommt auch, wird Clientseitig in den Buffer geschrieben.
+    Nur sind in dem Buffer          jetzt schon die ganzen Nachrichten von LIST
+    drinnen, aka er kann's nicht mehr mit "OK" abgleichen und       abortet
+    sofort
+    */
+
     else if (input[0] == "LIST") {
       if (inputSize < 2) {
-        printf("Invalid LIST command.\n");
+        strcpy(buffer, "Invalid LIST command\r\n");
       } else {
         int msgCnt = 0;
         string user = input[1];
 
-        // !!! WICHTIG !!!
-        // code funktioniert, aber er schafft es nicht den Pfad zu finden
-        // ka warum, es ist derselbe code wie oben, ich kann nimmer
-
+        // get and open directory for user (if existing)
         string inputPath = "../mail-spooler/" + user;
 
         DIR *directoryPointer = opendir(inputPath.c_str());
@@ -272,32 +283,58 @@ void *clientCommunication(void *data) {
 
         if (directoryPointer == NULL) {
           perror("opendir");
-          cout << "Path: " << inputPath << endl;
+          strcpy(buffer, "Directory not existing\r\n");
         } else {
+          // Reading all the entries in the directory
           while ((entry = readdir(directoryPointer)) != NULL) {
-            printf("%s\n", entry->d_name); // print all directory name
+            // send entry name to client
+            send(*current_socket, "\n", 1, 0);
+            strcpy(buffer, entry->d_name);
+            if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
+              perror("send failed");
+              return NULL;
+            } else {
+              msgCnt++;
+            }
           }
-
           closedir(directoryPointer); // close all directory
-          free(directoryPointer);
           free(entry);
         }
 
-        cout << "Total Messages: " << msgCnt << endl;
+        // convert message to c_str and copy to buffer
+        string count_report = "Total message count: " + to_string(msgCnt);
+        strcpy(buffer, count_report.c_str());
+
+        // send message counter to client
+        send(*current_socket, "\n", 1, 0);
+        if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
+          perror("send failed");
+          return NULL;
+        }
+
+        cout << "Buffer: " << buffer << endl;
       }
     }
+
+    /////////////////////////////////////////////////////////////////////////
 
     else if (input[0] == "READ") {
       cout << "READ: " << endl;
     }
 
+    /////////////////////////////////////////////////////////////////////////
+
     else if (input[0] == "DEL") {
       cout << "DEL: " << endl;
     }
 
+    /////////////////////////////////////////////////////////////////////////
+
     else if (input[0] == "QUIT") {
       cout << "QUIT: RECEIVED" << endl;
     }
+
+    /////////////////////////////////////////////////////////////////////////
 
     else {
       cout << input[0]
@@ -315,6 +352,7 @@ void *clientCommunication(void *data) {
 
     /**-------------------------------------------------**/
 
+    // send OK
     if (send(*current_socket, "OK", 3, 0) == -1) {
       perror("send answer failed");
       return NULL;
