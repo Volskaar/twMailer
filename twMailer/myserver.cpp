@@ -210,10 +210,14 @@ void *clientCommunication(void *data) {
 
     int inputSize = input.size();
 
+    /////////////////////////////////////////////////////////////////////////
+
     if (input[0] == "SEND") {
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
-      } else {
+      }
+
+      else {
         string sender = input[1];
         string receiver = input[2];
         string subject = input[3];
@@ -230,7 +234,9 @@ void *clientCommunication(void *data) {
           // Creating a directory if not existing
           if (mkdir(inputPath.c_str(), 0777) == -1) {
             cerr << "Error :  " << strerror(errno) << endl;
-          } else {
+          }
+
+          else {
             cout << "Directory created \n";
           }
         }
@@ -245,29 +251,108 @@ void *clientCommunication(void *data) {
         file << message << "\n";
 
         file.close();
+        closedir(directoryPointer);
+        free(directoryPointer);
       }
-    } else if (input[0] == "LIST") {
-      cout << "LIST: " << endl;
-    } else if (input[0] == "READ") {
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+
+    /* Problem:
+    wenn ich LIST aufrufe schicke ich dem Client mit send() in einer
+    while-schleife die einzelnen einträge.     soweit so gut, das macht er auch.
+    das Problem ist, dass sich der Client nach jeder operation ein "OK"
+    erwartet. Das "OK" kommt auch, wird Clientseitig in den Buffer geschrieben.
+    Nur sind in dem Buffer          jetzt schon die ganzen Nachrichten von LIST
+    drinnen, aka er kann's nicht mehr mit "OK" abgleichen und       abortet
+    sofort
+    */
+
+    else if (input[0] == "LIST") {
+      if (inputSize < 2) {
+        strcpy(buffer, "Invalid LIST command\r\n");
+      } else {
+        int msgCnt = 0;
+        string user = input[1];
+
+        // get and open directory for user (if existing)
+        string inputPath = "../mail-spooler/" + user;
+
+        DIR *directoryPointer = opendir(inputPath.c_str());
+        struct dirent *entry;
+
+        if (directoryPointer == NULL) {
+          perror("opendir");
+          strcpy(buffer, "Directory not existing\r\n");
+        } else {
+          // Reading all the entries in the directory
+          while ((entry = readdir(directoryPointer)) != NULL) {
+            // send entry name to client
+            send(*current_socket, "\n", 1, 0);
+            strcpy(buffer, entry->d_name);
+            if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
+              perror("send failed");
+              return NULL;
+            } else {
+              msgCnt++;
+            }
+          }
+          closedir(directoryPointer); // close all directory
+          free(entry);
+        }
+
+        // convert message to c_str and copy to buffer
+        string count_report = "Total message count: " + to_string(msgCnt);
+        strcpy(buffer, count_report.c_str());
+
+        // send message counter to client
+        send(*current_socket, "\n", 1, 0);
+        if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
+          perror("send failed");
+          return NULL;
+        }
+
+        cout << "Buffer: " << buffer << endl;
+      }
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+
+    else if (input[0] == "READ") {
       cout << "READ: " << endl;
-    } else if (input[0] == "DEL") {
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+
+    else if (input[0] == "DEL") {
       cout << "DEL: " << endl;
-    } else if (input[0] == "QUIT") {
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+
+    else if (input[0] == "QUIT") {
       cout << "QUIT: RECEIVED" << endl;
-    } else {
+    }
+
+    /////////////////////////////////////////////////////////////////////////
+
+    else {
       cout << input[0]
            << " | Command not recognized. Try SEND/LIST/READ/DEL/QUIT" << endl;
     }
 
+    /*
     for (auto iter : input) {
       cout << iter << endl;
     }
+    */
 
     // befehl alleine ohne attribute - z. B. READ - funktioniert nicht weil \n
     // mitgespeichert wird
 
     /**-------------------------------------------------**/
 
+    // send OK
     if (send(*current_socket, "OK", 3, 0) == -1) {
       perror("send answer failed");
       return NULL;
