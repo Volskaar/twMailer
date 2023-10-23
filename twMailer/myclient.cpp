@@ -94,7 +94,28 @@ std::string receiveMessage() {
   return input;
 }
 
-std::string receiveNumber() { return "123"; }
+std::string receiveNumber() {
+  std::string input;
+  bool wrongInput = true;
+
+  while (wrongInput) {
+    std::cout << "Please enter message number: " << std::endl;
+    std::cout << ">> ";
+    std::getline(std::cin, input);
+
+    for (unsigned int i = 0; i < input.length(); i++) {
+      if (!(std::isdigit(input[i]))) {
+        input.erase();
+        std::cout << "Wrong input, numbers only. ";
+        break;
+      }
+    }
+    if (input[0]) {
+      wrongInput = false;
+    }
+  }
+  return input;
+}
 
 int main(int argc, char **argv) {
   int create_socket;

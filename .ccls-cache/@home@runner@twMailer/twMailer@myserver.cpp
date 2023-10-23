@@ -198,7 +198,7 @@ void *clientCommunication(void *data) {
     string current;
 
     for (int i = 0; i < size; i++) {
-      if (buffer[i] != ' ') {
+      if (buffer[i] != '\n') {
         current += buffer[i];
       } else {
         input.push_back(current);
@@ -213,8 +213,10 @@ void *clientCommunication(void *data) {
     /////////////////////////////////////////////////////////////////////////
 
     if (input[0] == "SEND") {
+      string output = "";
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
+        output = "ERR\n";
       }
 
       else {
@@ -234,9 +236,8 @@ void *clientCommunication(void *data) {
           // Creating a directory if not existing
           if (mkdir(inputPath.c_str(), 0777) == -1) {
             cerr << "Error :  " << strerror(errno) << endl;
-          }
-
-          else {
+            output = "ERR\n";
+          } else {
             cout << "Directory created \n";
           }
         }
@@ -252,23 +253,20 @@ void *clientCommunication(void *data) {
 
         file.close();
         closedir(directoryPointer);
-        free(directoryPointer);
+
+        if (output != "ERR\n") {
+          output = "OK\n";
+        }
       }
+      strcpy(buffer, output.c_str());
     }
 
     /////////////////////////////////////////////////////////////////////////
 
-    /* Problem:
-    wenn ich LIST aufrufe schicke ich dem Client mit send() in einer
-    while-schleife die einzelnen einträge.     soweit so gut, das macht er auch.
-    das Problem ist, dass sich der Client nach jeder operation ein "OK"
-    erwartet. Das "OK" kommt auch, wird Clientseitig in den Buffer geschrieben.
-    Nur sind in dem Buffer          jetzt schon die ganzen Nachrichten von LIST
-    drinnen, aka er kann's nicht mehr mit "OK" abgleichen und       abortet
-    sofort
-    */
-
     else if (input[0] == "LIST") {
+
+      string output = "";
+
       if (inputSize < 2) {
         strcpy(buffer, "Invalid LIST command\r\n");
       } else {
@@ -283,49 +281,88 @@ void *clientCommunication(void *data) {
 
         if (directoryPointer == NULL) {
           perror("opendir");
-          strcpy(buffer, "Directory not existing\r\n");
+          output = "User unkown \n";
         } else {
           // Reading all the entries in the directory
           while ((entry = readdir(directoryPointer)) != NULL) {
             // send entry name to client
-            send(*current_socket, "\n", 1, 0);
-            strcpy(buffer, entry->d_name);
-            if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
-              perror("send failed");
-              return NULL;
-            } else {
-              msgCnt++;
-            }
+            output += entry->d_name;
+            output += "\n";
+            msgCnt++;
           }
           closedir(directoryPointer); // close all directory
-          free(entry);
         }
 
         // convert message to c_str and copy to buffer
-        string count_report = "Total message count: " + to_string(msgCnt);
-        strcpy(buffer, count_report.c_str());
-
-        // send message counter to client
-        send(*current_socket, "\n", 1, 0);
-        if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
-          perror("send failed");
-          return NULL;
+        if (msgCnt > 0) {
+          msgCnt -= 2;
         }
 
-        cout << "Buffer: " << buffer << endl;
+        output += "Total message count: ";
+        output += to_string(msgCnt);
+
+        strcpy(buffer, output.c_str());
+
+        cout << "Buffer: " << endl << buffer << endl;
       }
     }
 
     /////////////////////////////////////////////////////////////////////////
 
     else if (input[0] == "READ") {
-      cout << "READ: " << endl;
+      string user = input[1];
+      int msgNr = stoi(input[2]);
+
+      string output = "";
+
+      string path = "../mail-spooler/" + user;
+
+      // open user directory (if existing)
+      DIR *directoryPointer = opendir(path.c_str());
+      struct dirent *entry;
+
+      if (directoryPointer == NULL) {
+        perror("opendir");
+        output = "ERR\n";
+      } else {
+        int msgCount = 1;
+        while ((entry = readdir(directoryPointer)) != NULL) {
+          if (entry->d_type == DT_REG) {
+            if (msgCount == msgNr) {
+              // Open the exact msgNr file in a folder
+              string filePath = path + "/" + entry->d_name;
+              ifstream file(filePath);
+
+              if (file.is_open()) {
+                string line;
+
+                // handle lines
+                while (getline(file, line)) {
+                  cout << line << endl;
+                }
+                file.close();
+              }
+
+              else {
+                perror("ifstream error");
+                output = "ERR\n";
+              }
+              break; // Exit the loop once the desired file is found
+            }
+            msgCount++;
+          }
+        }
+        closedir(directoryPointer); // close all directory
+      }
+
+      strcpy(buffer, output.c_str());
     }
 
     /////////////////////////////////////////////////////////////////////////
 
     else if (input[0] == "DEL") {
       cout << "DEL: " << endl;
+      strcpy(buffer, "OK\n");
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -352,9 +389,9 @@ void *clientCommunication(void *data) {
 
     /**-------------------------------------------------**/
 
-    // send OK
-    if (send(*current_socket, "OK", 3, 0) == -1) {
-      perror("send answer failed");
+    // send response
+    if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
+      perror("send failed");
       return NULL;
     }
   } while (strcmp(buffer, "quit") != 0 && !abortRequested);
@@ -375,7 +412,7 @@ void *clientCommunication(void *data) {
 
 void signalHandler(int sig) {
   if (sig == SIGINT) {
-    printf("abort Requested... "); // ignore error
+    printf("abort Requested... \r\n"); // ignore error
     abortRequested = 1;
     /////////////////////////////////////////////////////////////////////////
     // With shutdown() one can initiate normal TCP close sequence ignoring
