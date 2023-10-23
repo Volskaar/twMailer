@@ -293,7 +293,10 @@ int main(int argc, char **argv) {
 
     //////////////////////////////////////////////////////////////////////
     // SEND DATA
-    std::cout << buffer << " sent" << std::endl;
+
+    // debug
+    // std::cout << buffer << " sent" << std::endl;
+
     if ((send(create_socket, buffer, size, 0)) == -1) {
       perror("send error");
       break;

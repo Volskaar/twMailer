@@ -325,31 +325,40 @@ void *clientCommunication(void *data) {
         perror("opendir");
         output = "ERR\n";
       } else {
-        int msgCount = 1;
+        // count files in directory until msgCount matches input fileNr
+        int msgCount = 0;
         while ((entry = readdir(directoryPointer)) != NULL) {
           if (entry->d_type == DT_REG) {
             if (msgCount == msgNr) {
               // Open the exact msgNr file in a folder
               string filePath = path + "/" + entry->d_name;
+              cout << "Filepath: " << filePath << endl;
+
+              // open file in reader
               ifstream file(filePath);
 
-              if (file.is_open()) {
-                string line;
+              if (file) {
+                output += "OK\n";
+                string line = "";
 
                 // handle lines
                 while (getline(file, line)) {
-                  cout << line << endl;
+                  output += line;
+                  output += "\n";
                 }
-                file.close();
-              }
 
-              else {
-                perror("ifstream error");
+                // close file
+                file.close();
+              } else {
+                cout << "Unable to open file" << endl;
                 output = "ERR\n";
               }
+
               break; // Exit the loop once the desired file is found
             }
             msgCount++;
+          } else {
+            output = "ERR\n";
           }
         }
         closedir(directoryPointer); // close all directory
@@ -361,14 +370,57 @@ void *clientCommunication(void *data) {
     /////////////////////////////////////////////////////////////////////////
 
     else if (input[0] == "DEL") {
-      cout << "DEL: " << endl;
-      strcpy(buffer, "OK\n");
+      string user = input[1];
+      int msgNr = stoi(input[2]);
+
+      string output = "";
+
+      string path = "../mail-spooler/" + user;
+
+      // open user directory (if existing)
+      DIR *directoryPointer = opendir(path.c_str());
+      struct dirent *entry;
+
+      if (directoryPointer == NULL) {
+        perror("opendir");
+        output = "ERR\n";
+      } else {
+        // count files in directory until msgCount matches input fileNr
+        int msgCount = 0;
+        while ((entry = readdir(directoryPointer)) != NULL) {
+          if (entry->d_type == DT_REG) {
+            if (msgCount == msgNr) {
+              // Open the exact msgNr file in a folder
+              string filePath = path + "/" + entry->d_name;
+              cout << "Filepath: " << filePath << endl;
+
+              // Delete the file
+              if (remove(filePath.c_str()) != 0) {
+                cout << "Unable to delete file" << endl;
+                output = "ERR\n";
+              } else {
+                output = "OK\n";
+              }
+
+              break; // Exit the loop once the desired file is found
+            }
+            msgCount++;
+          } else {
+            output = "ERR\n";
+          }
+        }
+        closedir(directoryPointer); // close all directory
+      }
+
+      strcpy(buffer, output.c_str());
     }
 
     /////////////////////////////////////////////////////////////////////////
 
     else if (input[0] == "QUIT") {
-      cout << "QUIT: RECEIVED" << endl;
+      string output = "quit";
+      cout << "quit initiated" << endl;
+      strcpy(buffer, output.c_str());
     }
 
     /////////////////////////////////////////////////////////////////////////
@@ -378,18 +430,9 @@ void *clientCommunication(void *data) {
            << " | Command not recognized. Try SEND/LIST/READ/DEL/QUIT" << endl;
     }
 
-    /*
-    for (auto iter : input) {
-      cout << iter << endl;
-    }
-    */
+    /////////////////////////////////////////////////////////////////////////
 
-    // befehl alleine ohne attribute - z. B. READ - funktioniert nicht weil \n
-    // mitgespeichert wird
-
-    /**-------------------------------------------------**/
-
-    // send response
+    // send response after every command
     if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
       perror("send failed");
       return NULL;
