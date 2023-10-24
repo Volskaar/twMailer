@@ -177,7 +177,6 @@ int main(int argc, char **argv){
            input = receiveInput();
 
            if(input == "SEND"){
-               std::cout << "SEND command " << std::endl;
                inputs.push_back(input);
                input.erase();
 
@@ -203,6 +202,11 @@ int main(int argc, char **argv){
                    input += '\n';
                }
 
+               //removing last '\n'
+               std::string::iterator iter = input.end();
+               iter--;
+               input.erase(iter);
+
                //transforming c++ std::string input into c-array char[] buffer
                strcpy(buffer, input.c_str());
                size = strlen(buffer);
@@ -211,7 +215,6 @@ int main(int argc, char **argv){
                inputCorrect++;
            }
            else if (input == "LIST") {
-               std::cout << "LIST command " << std::endl;
                inputs.push_back(input);
                input.erase();
 
@@ -233,7 +236,6 @@ int main(int argc, char **argv){
                inputCorrect++;
            }
            else if (input == "READ") {
-              std::cout << "READ command " << std::endl;
               inputs.push_back(input);
               input.erase();
 
@@ -254,12 +256,12 @@ int main(int argc, char **argv){
               //transforming c++ std::string input into c-array char[] buffer
               strcpy(buffer, input.c_str());
               size = strlen(buffer);
+              buffer[size - 1] = '\0';
               input.erase();
 
               inputCorrect++;
            }
            else if(input == "DEL"){
-              std::cout << "DEL command " << std::endl;
               inputs.push_back(input);
               input.erase();
 

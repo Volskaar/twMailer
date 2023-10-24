@@ -176,23 +176,10 @@ void *clientCommunication(void *data) {
       printf("Client closed remote socket\n"); // ignore error
       break;
     }
-
-    // remove ugly debug message, because of the sent newline of client
-    /*
-    if (buffer[size - 2] == '\r' && buffer[size - 1] == '\n')
-    {
-       size -= 2;
-    }
-    else if (buffer[size - 1] == '\n')
-    {
-       --size;
-    }
-     */
-
     buffer[size] = '\0';
-    // printf("Message received: %s\n", buffer); // ignore error
 
-    /**-------------------------------------------------**/
+    /////////////////////////////////////////////////////////////////////////
+    // SPLIT INPUT
 
     vector<string> input;
     string current;
@@ -205,14 +192,23 @@ void *clientCommunication(void *data) {
         current = "";
       }
     }
-    input.push_back(current);
-    current = "";
+    if(current[0]){
+        input.push_back(current);
+        current = "";
+    }
 
     int inputSize = input.size();
 
     /////////////////////////////////////////////////////////////////////////
 
     if (input[0] == "SEND") {
+      string message = input[4];
+      message += '\n';
+      for(long unsigned int i = 5; i < input.size(); i++){
+          message += input[i];
+          message += '\n';
+      }
+
       string output = "";
       if (inputSize < 6) {
         printf("Invalid SEND command.\n");
@@ -223,7 +219,6 @@ void *clientCommunication(void *data) {
         string sender = input[1];
         string receiver = input[2];
         string subject = input[3];
-        string message = input[4];
 
         // 1. check if receiver has folder, if not -> create
         string inputPath = "../mail-spooler/" + receiver;
@@ -249,7 +244,7 @@ void *clientCommunication(void *data) {
         file << sender << "\n";
         file << receiver << "\n";
         file << subject << "\n";
-        file << message << "\n";
+        file << message;
 
         file.close();
         closedir(directoryPointer);
@@ -302,8 +297,6 @@ void *clientCommunication(void *data) {
         output += to_string(msgCnt);
 
         strcpy(buffer, output.c_str());
-
-        cout << "Buffer: " << endl << buffer << endl;
       }
     }
 
@@ -346,6 +339,11 @@ void *clientCommunication(void *data) {
                   output += line;
                   output += "\n";
                 }
+
+                //removing last '\n'
+                string::iterator iter = output.end();
+                iter--;
+                output.erase(iter);
 
                 // close file
                 file.close();
