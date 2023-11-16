@@ -1,4 +1,0 @@
-user1
-user2
-subject
-This is my message. It should work.
