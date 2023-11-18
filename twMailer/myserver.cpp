@@ -363,6 +363,7 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
         }
 
             /////////////////////////////////////////////////////////////////////////
+            //test
 
         else if (input[0] == "SEND" && loggedIn) {
             string message = input[4];
