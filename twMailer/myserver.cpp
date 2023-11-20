@@ -21,6 +21,9 @@
 //ldap
 #include <ldap.h>
 
+//threading
+#include <sys/wait.h>
+
 using namespace std;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,7 +39,19 @@ int new_socket = -1;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void *clientCommunication(void *data, string clientIP, int* loginAttempt);
+struct comm_args{
+    int socket;
+    string clientIP;
+    int* loginAttempt;
+};
+
+//take care of future child processes
+int childCount = 0;
+pid_t child_pids[256];
+
+///////////////////////////////////////////////////////////////////////////////
+
+void clientCommunication(comm_args args);
 void signalHandler(int sig);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -129,12 +144,33 @@ int main(void) {
         }
 
         /////////////////////////////////////////////////////////////////////////
-        // START CLIENT
-        // ignore printf error handling
-        printf("Client connected from %s:%d...\n", inet_ntoa(cliaddress.sin_addr),
-               ntohs(cliaddress.sin_port));
-        clientIP = inet_ntoa(cliaddress.sin_addr);
-        clientCommunication(&new_socket, clientIP, &loginAttempt); // returnValue can be ignored
+        // FORKING
+
+        pid_t pid = fork();
+        child_pids[childCount] = pid;
+        childCount++;
+
+        if(pid < 0){
+            perror("fork failed");
+            return EXIT_FAILURE;
+        }
+        else if(pid == 0){
+            close(create_socket);
+            printf("Child process created!\n");
+            comm_args args = {
+                    new_socket,
+                    inet_ntoa(cliaddress.sin_addr),
+                    &loginAttempt
+            };
+
+            clientCommunication(args);
+
+            exit(EXIT_SUCCESS);
+        }
+        else{
+            close(new_socket);
+        }
+
         new_socket = -1;
     }
 
@@ -149,15 +185,43 @@ int main(void) {
         create_socket = -1;
     }
 
+    /////////////////////////////////////////////////////////////////////////
+    // WAIT FOR CHILD PROCESSES
+
+    for (int i = 0; i < childCount; i++) {
+        int status;
+        pid_t terminated_pid = waitpid(child_pids[i], &status, 0);
+
+        //check if child process terminated normally
+        if (WIFEXITED(status)) {
+            int exit_status = WEXITSTATUS(status);
+
+            if (exit_status == 0) {
+                printf("Child process %d terminated successfully.\n", terminated_pid);
+            } else {
+                printf("Child process %d terminated with an error.\n", terminated_pid);
+            }
+        } else {
+            printf("Child process %d terminated abnormally.\n", terminated_pid);
+        }
+    }
+
+    //while(wait(NULL) > 0);
+
     return EXIT_SUCCESS;
 }
 
-void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
+void clientCommunication(comm_args args) {
     char buffer[BUF];
     int size;
-    int *current_socket = (int *)data;
+
+    int* current_socket = &args.socket;
+    string clientIP = (string) args.clientIP;
+    int* loginAttempt = (int*) args.loginAttempt;
+
 
     bool loggedIn = false;
+    string username;
 
     /////////////////////////////////////////////////////////////////////////////
 
@@ -201,7 +265,7 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
     strcpy(buffer, "Welcome to myserver!\r\nPlease enter your commands...\r\n");
     if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
         perror("send failed");
-        return NULL;
+        //return NULL;
     }
 
     do {
@@ -300,6 +364,8 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
                 sprintf(ldapBindUser, "uid=%s,ou=people,dc=technikum-wien,dc=at", rawLdapUser);
                 strcpy(ldapBindPassword, input[2].c_str());
 
+                username = rawLdapUser;
+
                 BerValue bindCredentials;
                 bindCredentials.bv_val = (char *)ldapBindPassword;
                 bindCredentials.bv_len = strlen(ldapBindPassword);
@@ -365,23 +431,23 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
             /////////////////////////////////////////////////////////////////////////
 
         else if (input[0] == "SEND" && loggedIn) {
-            string message = input[4];
+            string message = input[3];
             message += '\n';
-            for(long unsigned int i = 5; i < input.size(); i++){
+            for(long unsigned int i = 4; i < input.size(); i++){
                 message += input[i];
                 message += '\n';
             }
 
             string output = "";
-            if (inputSize < 6) {
+            if (inputSize < 4) {
                 printf("Invalid SEND command.\n");
                 output = "ERR\n";
             }
 
             else {
-                string sender = input[1];
-                string receiver = input[2];
-                string subject = input[3];
+                string sender = username;
+                string receiver = input[1];
+                string subject = input[2];
 
                 // 1. check if receiver has folder, if not -> create
                 string inputPath = "../mail-spooler/" + receiver;
@@ -425,11 +491,11 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
 
             string output = "";
 
-            if (inputSize < 2) {
+            if (inputSize < 1) {
                 strcpy(buffer, "Invalid LIST command\r\n");
             } else {
                 int msgCnt = 0;
-                string user = input[1];
+                string user = username;
 
                 // get and open directory for user (if existing)
                 string inputPath = "../mail-spooler/" + user;
@@ -466,8 +532,8 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
             /////////////////////////////////////////////////////////////////////////
 
         else if (input[0] == "READ" && loggedIn) {
-            string user = input[1];
-            int msgNr = stoi(input[2]);
+            string user = username;
+            int msgNr = stoi(input[1]);
 
             string output = "";
 
@@ -517,9 +583,8 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
 
                             break; // Exit the loop once the desired file is found
                         }
+
                         msgCount++;
-                    } else {
-                        output = "ERR\n";
                     }
                 }
                 closedir(directoryPointer); // close all directory
@@ -531,8 +596,8 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
             /////////////////////////////////////////////////////////////////////////
 
         else if (input[0] == "DEL" && loggedIn) {
-            string user = input[1];
-            int msgNr = stoi(input[2]);
+            string user = username;
+            int msgNr = stoi(input[1]);
 
             string output = "";
 
@@ -601,7 +666,7 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
         // send response after every command
         if (send(*current_socket, buffer, strlen(buffer), 0) == -1) {
             perror("send failed");
-            return NULL;
+            //return NULL;
         }
     } while (strcmp(buffer, "quit") != 0 && !abortRequested);
 
@@ -616,7 +681,7 @@ void *clientCommunication(void *data, string clientIP, int* loginAttempt) {
         *current_socket = -1;
     }
 
-    return NULL;
+    //return NULL;
 }
 
 void signalHandler(int sig) {
